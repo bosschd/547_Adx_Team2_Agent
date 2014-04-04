@@ -40,10 +40,10 @@ import edu.umich.eecs.tac.props.BankStatus;
  * @author Mariano Schain
  * 
  */
-public class team2AdNetwork extends Agent {
+public class Team2_Ad_Network extends Agent {
 
 	private final Logger log = Logger
-			.getLogger(team2AdNetwork.class.getName());
+			.getLogger(Team2_Ad_Network.class.getName());
 
 	/*
 	 * Basic simulation information. An agent should receive the {@link
@@ -113,7 +113,7 @@ public class team2AdNetwork extends Agent {
 
 	private Random randomGenerator;
 
-	public team2AdNetwork() {
+	public Team2_Ad_Network() {
 		campaignReports = new LinkedList<CampaignReport>();
 	}
 
@@ -233,14 +233,90 @@ public class team2AdNetwork extends Agent {
 		 */
 		
 		for (CampaignData campaign : myCampaigns.values()) {
-			if(campaign.targetSegment == pendingCampaign.targetSegment) {
-				doIBid = false;
+			for(MarketSegment current1 : campaign.targetSegment) {
+				for(MarketSegment current2 : campaign.targetSegment) {
+					if(current1 != current2) {
+						//Identical market segments
+						if(pendingCampaign.targetSegment.contains(current1) && pendingCampaign.targetSegment.contains(current2)) {
+							doIBid = false;
+						}
+						//Overlapping
+						if(pendingCampaign.targetSegment.contains(current1)) {
+							switch (current2) {
+								case MALE:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.FEMALE)) {
+										doIBid = false;
+									}
+									break;
+								case FEMALE:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.MALE)) {
+										doIBid = false;
+									}
+									break;
+								case YOUNG:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.OLD)) {
+										doIBid = false;
+									}
+									break;
+								case OLD:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.YOUNG)) {
+										doIBid = false;
+									}
+									break;
+								case LOW_INCOME:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.HIGH_INCOME)) {
+										doIBid = false;
+									}
+									break;
+								case HIGH_INCOME:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.LOW_INCOME)) {
+										doIBid = false;
+									}
+									break;
+							}
+						}
+						if(pendingCampaign.targetSegment.contains(current2)) {
+							switch (current1) {
+								case MALE:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.FEMALE)) {
+										doIBid = false;
+									}
+									break;
+								case FEMALE:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.MALE)) {
+										doIBid = false;
+									}
+									break;
+								case YOUNG:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.OLD)) {
+										doIBid = false;
+									}
+									break;
+								case OLD:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.YOUNG)) {
+										doIBid = false;
+									}
+									break;
+								case LOW_INCOME:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.HIGH_INCOME)) {
+										doIBid = false;
+									}
+									break;
+								case HIGH_INCOME:
+									if(!pendingCampaign.targetSegment.contains(MarketSegment.LOW_INCOME)) {
+										doIBid = false;
+									}
+									break;
+							}
+						}
+					}
+				}
 			}
 		}
 		if(doIBid) {
-		//	long cmpBid = 1 + Math.abs((randomGenerator.nextLong())
-		//			% (com.getReachImps()));
-			long cmpBid = 1000;
+			long cmpBid = 1 + Math.abs((randomGenerator.nextLong())
+					% (com.getReachImps()));
+//			long cmpBid = 1;
 
 			double cmpBidUnits = cmpBid / 1000.0;
 
@@ -364,7 +440,7 @@ public class team2AdNetwork extends Agent {
 							.getMarketSegments();
 
 					for (MarketSegment marketSegment : segmentsList) {
-						for(MarketSegemt campaignSegment: campaign.targetSegment) {
+						for(MarketSegment campaignSegment: campaign.targetSegment) {
 							if (campaignSegment == marketSegment) {
 								/*
 								 * among matching entries with the same campaign id,
@@ -544,7 +620,7 @@ public class team2AdNetwork extends Agent {
 		Long reachImps;
 		long dayStart;
 		long dayEnd;
-		set<MarketSegment> targetSegment;
+		Set<MarketSegment> targetSegment;
 		double videoCoef;
 		double mobileCoef;
 		int id;
@@ -586,8 +662,8 @@ public class team2AdNetwork extends Agent {
 		public String toString() {
 			String targetString = "";
 			for(MarketSegment segment: targetSegment) {
-				targetString.append(segment.name());
-				targetString.append(" ");
+				targetString.concat(segment.name());
+				targetString.concat(" ");
 			}
 			return "Campaign ID " + id + ": " + "day " + dayStart + " to "
 					+ dayEnd + " " + targetString + ", reach: "
