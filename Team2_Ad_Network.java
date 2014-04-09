@@ -66,6 +66,7 @@ public class Team2_Ad_Network extends Agent {
 	private PublisherCatalog publisherCatalog;
 	private InitialCampaignMessage initialCampaignMessage;
 	private AdNetworkDailyNotification adNetworkDailyNotification;
+	private Map<MarketSegment, Double> segmentValues;
 
 	/*
 	 * The addresses of server entities to which the agent should send the daily
@@ -106,6 +107,12 @@ public class Team2_Ad_Network extends Agent {
 	 */
 	double ucsTargetLevel;
 
+	private Map<String, Integer> ageProbabilityMap;
+
+	private Map<String, Integer> incomeProbabilityMap;
+
+	private Map<String, Integer> genderProbabilityMap;
+
 	/*
 	 * current day of simulation
 	 */
@@ -115,6 +122,67 @@ public class Team2_Ad_Network extends Agent {
 
 	public Team2_Ad_Network() {
 		campaignReports = new LinkedList<CampaignReport>();
+		ageProbabilityMap = new HashMap<String, Integer>();
+		incomeProbabilityMap = new HashMap<String, Integer>();
+		genderProbabilityMap = new HashMap<String, Integer>();
+		setUpMaps();
+	}
+
+	void setUpMaps() {
+		ageProbabilityMap.put("yahoo", 71);	
+		ageProbabilityMap.put("cnn", 58);	
+		ageProbabilityMap.put("nyt", 57);	//?
+		ageProbabilityMap.put("hfn", 54);	
+		ageProbabilityMap.put("msn", 68);
+		ageProbabilityMap.put("fox", 60);
+		ageProbabilityMap.put("amazon", 67);	
+		ageProbabilityMap.put("ebay", 69);
+		ageProbabilityMap.put("walmart", 72);	
+		ageProbabilityMap.put("target", 71);	//?
+		ageProbabilityMap.put("bestbuy", 72);	//?
+		ageProbabilityMap.put("sears", 62);	//?
+		ageProbabilityMap.put("webmd", 62);	//?
+		ageProbabilityMap.put("ehow", 72);	//?
+		ageProbabilityMap.put("ask", 70);	//?
+		ageProbabilityMap.put("tripadvisor", 60);	//?
+		ageProbabilityMap.put("cnet", 68);	//?
+		ageProbabilityMap.put("weather", 64);	//?
+		incomeProbabilityMap.put("yahoo", 42);	
+		incomeProbabilityMap.put("cnn", 37);	
+		incomeProbabilityMap.put("nyt", 36);	//?
+		incomeProbabilityMap.put("hfn", 73);	
+		incomeProbabilityMap.put("msn", 41);
+		incomeProbabilityMap.put("fox", 38);
+		incomeProbabilityMap.put("amazon", 40);	
+		incomeProbabilityMap.put("ebay", 39);
+		incomeProbabilityMap.put("walmart", 45);	
+		incomeProbabilityMap.put("target", 41);	//?
+		incomeProbabilityMap.put("bestbuy", 41);	//?
+		incomeProbabilityMap.put("sears", 40);	//?
+		incomeProbabilityMap.put("webmd", 43);	//?
+		incomeProbabilityMap.put("ehow", 41);	//?
+		incomeProbabilityMap.put("ask", 43);	//?
+		incomeProbabilityMap.put("tripadvisor", 32);	//?
+		incomeProbabilityMap.put("cnet", 42);	//?
+		incomeProbabilityMap.put("weather", 35);	//?
+		genderProbabilityMap.put("yahoo", 48);	
+		genderProbabilityMap.put("cnn", 58);	
+		genderProbabilityMap.put("nyt", 53);	//?
+		genderProbabilityMap.put("hfn", 51);	
+		genderProbabilityMap.put("msn", 49);
+		genderProbabilityMap.put("fox", 55);
+		genderProbabilityMap.put("amazon", 48);	
+		genderProbabilityMap.put("ebay", 52);
+		genderProbabilityMap.put("walmart", 43);	
+		genderProbabilityMap.put("target", 40);	//?
+		genderProbabilityMap.put("bestbuy", 52);	//?
+		genderProbabilityMap.put("sears", 48);	//?
+		genderProbabilityMap.put("webmd", 40);	//?
+		genderProbabilityMap.put("ehow", 46);	//?
+		genderProbabilityMap.put("ask", 43);	//?
+		genderProbabilityMap.put("tripadvisor", 45);	//?
+		genderProbabilityMap.put("cnet", 60);	//?
+		genderProbabilityMap.put("weather", 51);	//?
 	}
 
 	@Override
