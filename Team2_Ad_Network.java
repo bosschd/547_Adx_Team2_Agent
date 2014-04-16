@@ -14,6 +14,7 @@ import java.util.logging.Logger;
 import java.lang.Object;
 import java.lang.Number;
 import java.lang.Double;
+import java.lang.Exception;
 
 
 import se.sics.isl.transport.Transportable;
@@ -29,6 +30,8 @@ import tau.tac.adx.props.AdxQuery;
 import tau.tac.adx.props.PublisherCatalog;
 import tau.tac.adx.props.PublisherCatalogEntry;
 import tau.tac.adx.report.adn.AdNetworkReport;
+import tau.tac.adx.report.adn.AdNetworkReportEntry;
+import tau.tac.adx.report.adn.AdNetworkKey;
 import tau.tac.adx.report.adn.MarketSegment;
 import tau.tac.adx.report.demand.AdNetBidMessage;
 import tau.tac.adx.report.demand.AdNetworkDailyNotification;
@@ -36,6 +39,7 @@ import tau.tac.adx.report.demand.CampaignOpportunityMessage;
 import tau.tac.adx.report.demand.CampaignReport;
 import tau.tac.adx.report.demand.CampaignReportKey;
 import tau.tac.adx.report.demand.InitialCampaignMessage;
+import tau.tac.adx.report.demand.campaign.auction.CampaignAuctionReport;
 import tau.tac.adx.report.publisher.AdxPublisherReport;
 import tau.tac.adx.report.publisher.AdxPublisherReportEntry;
 import edu.umich.eecs.tac.props.Ad;
@@ -46,7 +50,64 @@ import edu.umich.eecs.tac.props.BankStatus;
  * @author Mariano Schain
  * 
  */
+
 public class Team2_Ad_Network extends Agent {
+
+	private enum CompoundSegment {
+		OLD_MALE,
+		YOUNG_MALE,
+		LOW_MALE,
+		HIGH_MALE,
+		OLD_FEMALE,
+		YOUNG_FEMALE,
+		LOW_FEMALE,
+		HIGH_FEMALE,
+		LOW_OLD,
+		HIGH_OLD,
+		LOW_YOUNG,
+		HIGH_YOUNG;
+
+		private static CompoundSegment generateSegment(MarketSegment s1, MarketSegment s2) {
+			if((s1 == MarketSegment.OLD && s2 == MarketSegment.MALE) || (s2 == MarketSegment.OLD && s1 == MarketSegment.MALE)) {
+				return OLD_MALE;
+			}
+			else if((s1 == MarketSegment.YOUNG && s2 == MarketSegment.MALE) || (s2 == MarketSegment.YOUNG && s1 == MarketSegment.MALE)) {
+				return YOUNG_MALE;
+			}
+			else if((s1 == MarketSegment.LOW_INCOME && s2 == MarketSegment.MALE) || (s2 == MarketSegment.LOW_INCOME && s1 == MarketSegment.MALE)) {
+				return LOW_MALE;
+			}
+			else if((s1 == MarketSegment.HIGH_INCOME && s2 == MarketSegment.MALE) || (s2 == MarketSegment.HIGH_INCOME && s1 == MarketSegment.MALE)) {
+				return HIGH_MALE;
+			}
+			else if((s1 == MarketSegment.OLD && s2 == MarketSegment.FEMALE) || (s2 == MarketSegment.OLD && s1 == MarketSegment.FEMALE)) {
+				return OLD_FEMALE;
+			}
+			else if((s1 == MarketSegment.YOUNG && s2 == MarketSegment.FEMALE) || (s2 == MarketSegment.YOUNG && s1 == MarketSegment.FEMALE)) {
+				return YOUNG_FEMALE;
+			}
+			else if((s1 == MarketSegment.LOW_INCOME && s2 == MarketSegment.FEMALE) || (s2 == MarketSegment.LOW_INCOME && s1 == MarketSegment.FEMALE)) {
+				return LOW_FEMALE;
+			}
+			else if((s1 == MarketSegment.HIGH_INCOME && s2 == MarketSegment.FEMALE) || (s2 == MarketSegment.HIGH_INCOME && s1 == MarketSegment.FEMALE)) {
+				return HIGH_FEMALE;
+			}
+			else if((s1 == MarketSegment.LOW_INCOME && s2 == MarketSegment.OLD) || (s2 == MarketSegment.LOW_INCOME && s1 == MarketSegment.OLD)) {
+				return LOW_OLD;
+			}
+			else if((s1 == MarketSegment.HIGH_INCOME && s2 == MarketSegment.OLD) || (s2 == MarketSegment.HIGH_INCOME && s1 == MarketSegment.OLD)) {
+				return HIGH_OLD;
+			}
+			else if((s1 == MarketSegment.LOW_INCOME && s2 == MarketSegment.YOUNG) || (s2 == MarketSegment.LOW_INCOME && s1 == MarketSegment.YOUNG)) {
+				return LOW_YOUNG;
+			}
+			else if((s1 == MarketSegment.HIGH_INCOME && s2 == MarketSegment.YOUNG) || (s2 == MarketSegment.HIGH_INCOME && s1 == MarketSegment.YOUNG)) {
+				return HIGH_YOUNG;
+			} else {
+				return null;
+			}
+		}
+	}
 
 	private final Logger log = Logger
 			.getLogger(Team2_Ad_Network.class.getName());
@@ -72,7 +133,8 @@ public class Team2_Ad_Network extends Agent {
 	private PublisherCatalog publisherCatalog;
 	private InitialCampaignMessage initialCampaignMessage;
 	private AdNetworkDailyNotification adNetworkDailyNotification;
-	private EnumMap<MarketSegment, Double> segmentValues;
+	private EnumMap<CompoundSegment, Double> segmentValues;
+	private int impressionOpsPerDay;
 
 	/*
 	 * The addresses of server entities to which the agent should send the daily
@@ -131,72 +193,78 @@ public class Team2_Ad_Network extends Agent {
 		ageProbabilityMap = new HashMap<String, Integer>();
 		incomeProbabilityMap = new HashMap<String, Integer>();
 		genderProbabilityMap = new HashMap<String, Integer>();
-		segmentValues = new EnumMap<MarketSegment, Double>(MarketSegment.class);
+		segmentValues = new EnumMap<CompoundSegment, Double>(CompoundSegment.class);
 		Double zero = Double.valueOf(0.0d);
-		segmentValues.put(MarketSegment.YOUNG, zero);
-		segmentValues.put(MarketSegment.OLD, zero);
-		segmentValues.put(MarketSegment.LOW_INCOME, zero);
-		segmentValues.put(MarketSegment.HIGH_INCOME, zero);
-		segmentValues.put(MarketSegment.MALE, zero);
-		segmentValues.put(MarketSegment.FEMALE, zero);
+		segmentValues.put(CompoundSegment.OLD_MALE, zero);
+		segmentValues.put(CompoundSegment.YOUNG_MALE, zero);
+		segmentValues.put(CompoundSegment.LOW_MALE, zero);
+		segmentValues.put(CompoundSegment.HIGH_MALE, zero);
+		segmentValues.put(CompoundSegment.OLD_FEMALE, zero);
+		segmentValues.put(CompoundSegment.YOUNG_FEMALE, zero);
+		segmentValues.put(CompoundSegment.LOW_FEMALE, zero);
+		segmentValues.put(CompoundSegment.HIGH_FEMALE, zero);
+		segmentValues.put(CompoundSegment.LOW_OLD, zero);
+		segmentValues.put(CompoundSegment.LOW_YOUNG, zero);
+		segmentValues.put(CompoundSegment.HIGH_OLD, zero);
+		segmentValues.put(CompoundSegment.HIGH_YOUNG, zero);
 		setUpMaps();
 	}
 
 	void setUpMaps() {
 		ageProbabilityMap.put("yahoo", 71);	
 		ageProbabilityMap.put("cnn", 58);	
-		ageProbabilityMap.put("nyt", 57);	//?
+		ageProbabilityMap.put("nyt", 57);	
 		ageProbabilityMap.put("hfn", 54);	
 		ageProbabilityMap.put("msn", 68);
 		ageProbabilityMap.put("fox", 60);
 		ageProbabilityMap.put("amazon", 67);	
 		ageProbabilityMap.put("ebay", 69);
 		ageProbabilityMap.put("walmart", 72);	
-		ageProbabilityMap.put("target", 71);	//?
-		ageProbabilityMap.put("bestbuy", 72);	//?
-		ageProbabilityMap.put("sears", 62);	//?
+		ageProbabilityMap.put("target", 71);	
+		ageProbabilityMap.put("bestbuy", 72);	
+		ageProbabilityMap.put("sears", 62);	
 		ageProbabilityMap.put("webmd", 62);	//?
-		ageProbabilityMap.put("ehow", 72);	//?
+		ageProbabilityMap.put("ehow", 72);	
 		ageProbabilityMap.put("ask", 70);	//?
-		ageProbabilityMap.put("tripadvisor", 60);	//?
-		ageProbabilityMap.put("cnet", 68);	//?
-		ageProbabilityMap.put("weather", 64);	//?
+		ageProbabilityMap.put("tripadvisor", 60);	
+		ageProbabilityMap.put("cnet", 68);	
+		ageProbabilityMap.put("weather", 64);	
 		incomeProbabilityMap.put("yahoo", 42);	
 		incomeProbabilityMap.put("cnn", 37);	
-		incomeProbabilityMap.put("nyt", 36);	//?
+		incomeProbabilityMap.put("nyt", 36);	
 		incomeProbabilityMap.put("hfn", 73);	
 		incomeProbabilityMap.put("msn", 41);
 		incomeProbabilityMap.put("fox", 38);
 		incomeProbabilityMap.put("amazon", 40);	
 		incomeProbabilityMap.put("ebay", 39);
 		incomeProbabilityMap.put("walmart", 45);	
-		incomeProbabilityMap.put("target", 41);	//?
-		incomeProbabilityMap.put("bestbuy", 41);	//?
-		incomeProbabilityMap.put("sears", 40);	//?
+		incomeProbabilityMap.put("target", 41);	
+		incomeProbabilityMap.put("bestbuy", 41);	
+		incomeProbabilityMap.put("sears", 40);	
 		incomeProbabilityMap.put("webmd", 43);	//?
-		incomeProbabilityMap.put("ehow", 41);	//?
+		incomeProbabilityMap.put("ehow", 41);	
 		incomeProbabilityMap.put("ask", 43);	//?
-		incomeProbabilityMap.put("tripadvisor", 32);	//?
-		incomeProbabilityMap.put("cnet", 42);	//?
-		incomeProbabilityMap.put("weather", 35);	//?
+		incomeProbabilityMap.put("tripadvisor", 32);	
+		incomeProbabilityMap.put("cnet", 42);	
+		incomeProbabilityMap.put("weather", 35);	
 		genderProbabilityMap.put("yahoo", 48);	
 		genderProbabilityMap.put("cnn", 58);	
-		genderProbabilityMap.put("nyt", 53);	//?
+		genderProbabilityMap.put("nyt", 53);	
 		genderProbabilityMap.put("hfn", 51);	
 		genderProbabilityMap.put("msn", 49);
 		genderProbabilityMap.put("fox", 55);
 		genderProbabilityMap.put("amazon", 48);	
 		genderProbabilityMap.put("ebay", 52);
 		genderProbabilityMap.put("walmart", 43);	
-		genderProbabilityMap.put("target", 40);	//?
-		genderProbabilityMap.put("bestbuy", 52);	//?
-		genderProbabilityMap.put("sears", 48);	//?
+		genderProbabilityMap.put("target", 40);	
+		genderProbabilityMap.put("bestbuy", 52);	
+		genderProbabilityMap.put("sears", 48);	
 		genderProbabilityMap.put("webmd", 40);	//?
-		genderProbabilityMap.put("ehow", 46);	//?
+		genderProbabilityMap.put("ehow", 46);	
 		genderProbabilityMap.put("ask", 43);	//?
-		genderProbabilityMap.put("tripadvisor", 45);	//?
-		genderProbabilityMap.put("cnet", 60);	//?
-		genderProbabilityMap.put("weather", 51);	//?
+		genderProbabilityMap.put("tripadvisor", 45);	
+		genderProbabilityMap.put("cnet", 60);	
+		genderProbabilityMap.put("weather", 51);	
 	}
 
 	@Override
@@ -207,25 +275,38 @@ public class Team2_Ad_Network extends Agent {
 			//log.fine(message.getContent().getClass().toString());
 			
 			if (content instanceof InitialCampaignMessage) {
+				log.info("Initial Campaign Message");
 				handleInitialCampaignMessage((InitialCampaignMessage) content);
 			} else if (content instanceof CampaignOpportunityMessage) {
+				log.info("Campaign Opportunity Message");
 				handleICampaignOpportunityMessage((CampaignOpportunityMessage) content);
 			} else if (content instanceof CampaignReport) {
+				log.info("Campaign Report");
 				handleCampaignReport((CampaignReport) content);
 			} else if (content instanceof AdNetworkDailyNotification) {
+				log.info("Daily Notification");
 				handleAdNetworkDailyNotification((AdNetworkDailyNotification) content);
 			} else if (content instanceof AdxPublisherReport) {
+				log.info("Publisher Report");
 				handleAdxPublisherReport((AdxPublisherReport) content);
 			} else if (content instanceof SimulationStatus) {
+				log.info("Simulation Status");
 				handleSimulationStatus((SimulationStatus) content);
 			} else if (content instanceof PublisherCatalog) {
+				log.info("Publisher catalog");
 				handlePublisherCatalog((PublisherCatalog) content);
 			} else if (content instanceof AdNetworkReport) {
+				log.info("Ad Network Report");
 				handleAdNetworkReport((AdNetworkReport) content);
 			} else if (content instanceof StartInfo) {
+				log.info("Start Info");
 				handleStartInfo((StartInfo) content);
 			} else if (content instanceof BankStatus) {
+				log.info("Bank Status");
 				handleBankStatus((BankStatus) content);
+			} else if (content instanceof CampaignAuctionReport) {
+				log.info("Campaign Auction Report");
+				handleCampaignAuctionReport((CampaignAuctionReport) content);
 			} else {
 				log.info("UNKNOWN Message Received: " + content);
 			}
@@ -235,6 +316,10 @@ public class Team2_Ad_Network extends Agent {
 					"Exception thrown while trying to parse message." + e);
 			return;
 		}
+	}
+
+	private void handleCampaignAuctionReport(CampaignAuctionReport content) {
+
 	}
 
 	private void handleBankStatus(BankStatus content) {
@@ -397,9 +482,17 @@ public class Team2_Ad_Network extends Agent {
 		}
 		if(doIBid) {
 			double campaignValue = 0.0;
-			for(MarketSegment segment : pendingCampaign.targetSegment) {
-				campaignValue += 0.5 * segmentValues.get(segment);
+			for(MarketSegment segment1 : pendingCampaign.targetSegment) {
+				for(MarketSegment segment2 : pendingCampaign.targetSegment) {
+					if(segment1 != segment2) {
+						CompoundSegment fullSegment = CompoundSegment.generateSegment(segment1, segment2);
+						campaignValue = segmentValues.get(fullSegment);
+					}
+				}
 			}
+			double targetBidPerDay = pendingCampaign.reachImps / (pendingCampaign.dayEnd - pendingCampaign.dayStart);
+			log.info("                                 Target Bid Per Day: " + targetBidPerDay);
+			
 //			long cmpBid = 1 + Math.abs((randomGenerator.nextLong())
 //					% (com.getReachImps()));
 //			long cmpBid = 1;
@@ -425,10 +518,9 @@ public class Team2_Ad_Network extends Agent {
 			} else {
 				log.info("Day " + day + ": Initial ucs bid is " + ucsBid);
 			}
-
 		/* Note: Campaign bid is in millis */
-			long cmpBid = (long) campaignValue;
-			
+			long cmpBid = ((long) campaignValue / (long) targetBidPerDay);
+			log.info("                                            " + cmpBid);
 			double cmpBidUnits = cmpBid / 1000.0;
 //			System.out.println(cmpBidUnits);
 
@@ -458,15 +550,15 @@ public class Team2_Ad_Network extends Agent {
 				+ notificationMessage.getWinner();
 
 		if ((pendingCampaign.id == adNetworkDailyNotification.getCampaignId())
-				&& (notificationMessage.getCost() != 0)) {
+				&& (notificationMessage.getCostMillis() != 0L)) {
 
 			/* add campaign to list of won campaigns */
-			pendingCampaign.setBudget(notificationMessage.getCost());
+			pendingCampaign.setBudget(notificationMessage.getCostMillis());
 
 			myCampaigns.put(pendingCampaign.id, pendingCampaign);
 
 			campaignAllocatedTo = " WON at cost "
-					+ notificationMessage.getCost();
+					+ notificationMessage.getCostMillis();
 		}
 
 		log.info("Day " + day + ": " + campaignAllocatedTo
@@ -584,7 +676,14 @@ public class Team2_Ad_Network extends Agent {
 			int cmpId = campaignKey.getCampaignId();
 			CampaignStats cstats = campaignReport.getCampaignReportEntry(
 					campaignKey).getCampaignStats();
-			myCampaigns.get(cmpId).setStats(cstats);
+			CampaignData campaign = myCampaigns.get(cmpId);
+			if(campaign != null) {
+				campaign.setStats(cstats);
+				if(campaign.impsTogo() == 0 || campaign.dayEnd > day) {
+					myCampaigns.remove(cmpId);
+				}
+			}
+			
 
 			log.info("Day " + day + ": Updating campaign " + cmpId + " stats: "
 					+ cstats.getTargetedImps() + " tgtImps "
@@ -596,12 +695,18 @@ public class Team2_Ad_Network extends Agent {
 
 	void resetSegmentValues() {
 		Double zero = Double.valueOf(0.0d);
-		segmentValues.put(MarketSegment.YOUNG, zero);
-		segmentValues.put(MarketSegment.OLD, zero);
-		segmentValues.put(MarketSegment.LOW_INCOME, zero);
-		segmentValues.put(MarketSegment.HIGH_INCOME, zero);
-		segmentValues.put(MarketSegment.MALE, zero);
-		segmentValues.put(MarketSegment.FEMALE, zero);
+		segmentValues.put(CompoundSegment.OLD_MALE, zero);
+		segmentValues.put(CompoundSegment.YOUNG_MALE, zero);
+		segmentValues.put(CompoundSegment.LOW_MALE, zero);
+		segmentValues.put(CompoundSegment.HIGH_MALE, zero);
+		segmentValues.put(CompoundSegment.OLD_FEMALE, zero);
+		segmentValues.put(CompoundSegment.YOUNG_FEMALE, zero);
+		segmentValues.put(CompoundSegment.LOW_FEMALE, zero);
+		segmentValues.put(CompoundSegment.HIGH_FEMALE, zero);
+		segmentValues.put(CompoundSegment.LOW_OLD, zero);
+		segmentValues.put(CompoundSegment.LOW_YOUNG, zero);
+		segmentValues.put(CompoundSegment.HIGH_OLD, zero);
+		segmentValues.put(CompoundSegment.HIGH_YOUNG, zero);
 	}
 
 	/**
@@ -615,51 +720,93 @@ public class Team2_Ad_Network extends Agent {
 			AdxPublisherReportEntry entry = adxPublisherReport.getEntry(publisherKey);
 			String name = entry.getPublisherName();
 			int popularity = entry.getPopularity();
-			Double youngSegmentValue = segmentValues.get(MarketSegment.YOUNG);
-			Double oldSegmentValue = segmentValues.get(MarketSegment.OLD);
-			Double lowSegmentValue = segmentValues.get(MarketSegment.LOW_INCOME);
-			Double highSegmentValue = segmentValues.get(MarketSegment.HIGH_INCOME);
-			Double maleSegmentValue = segmentValues.get(MarketSegment.MALE);
-			Double femaleSegmentValue = segmentValues.get(MarketSegment.FEMALE);
-			if(ageProbabilityMap.containsKey(name)) {
-				double newValue = youngSegmentValue.doubleValue() + popularity * 0.01 * ageProbabilityMap.get(name).doubleValue();
-				Double newYoung = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.YOUNG, newYoung);
-				newValue = oldSegmentValue.doubleValue() + popularity * 0.01 * (1 - ageProbabilityMap.get(name).doubleValue());
-				Double newOld = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.OLD, newOld);
-				newValue = lowSegmentValue.doubleValue() + popularity * 0.01 * incomeProbabilityMap.get(name).doubleValue();
-				Double newLow = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.LOW_INCOME, newLow);
-				newValue = highSegmentValue.doubleValue() + popularity * 0.01 * (1 - incomeProbabilityMap.get(name).doubleValue());
-				Double newHigh = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.HIGH_INCOME, newHigh);
-				newValue = maleSegmentValue.doubleValue() + popularity * 0.01 * genderProbabilityMap.get(name).doubleValue();
-				Double newMale = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.MALE, newMale);
-				newValue = femaleSegmentValue.doubleValue() + popularity * 0.01 * (1 - genderProbabilityMap.get(name).doubleValue());
-				Double newFemale = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.FEMALE, newFemale);
+			Double old_maleValue = segmentValues.get(CompoundSegment.OLD_MALE);
+			Double young_maleValue = segmentValues.get(CompoundSegment.YOUNG_MALE);
+			Double low_maleValue = segmentValues.get(CompoundSegment.LOW_MALE);
+			Double high_maleValue = segmentValues.get(CompoundSegment.HIGH_MALE);
+			Double old_femaleValue = segmentValues.get(CompoundSegment.OLD_FEMALE);
+			Double young_femaleValue = segmentValues.get(CompoundSegment.YOUNG_FEMALE);
+			Double low_femaleValue = segmentValues.get(CompoundSegment.LOW_FEMALE);
+			Double high_femaleValue = segmentValues.get(CompoundSegment.HIGH_FEMALE);
+			Double low_oldValue = segmentValues.get(CompoundSegment.LOW_OLD);
+			Double high_oldValue = segmentValues.get(CompoundSegment.HIGH_OLD);
+			Double low_youngValue = segmentValues.get(CompoundSegment.LOW_YOUNG);
+			Double high_youngValue = segmentValues.get(CompoundSegment.HIGH_YOUNG);
+			if(ageProbabilityMap.containsKey(name)) { 
+				double newValue = young_maleValue.doubleValue() + popularity * 0.01 * ageProbabilityMap.get(name).doubleValue() * genderProbabilityMap.get(name).doubleValue();
+				Double newYoung_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.YOUNG_MALE, newYoung_Male);
+				newValue = old_maleValue.doubleValue() + popularity * 0.01 * (100 - ageProbabilityMap.get(name).doubleValue()) * genderProbabilityMap.get(name).doubleValue();
+				Double newOld_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.OLD_MALE, newOld_Male);
+				newValue = low_maleValue.doubleValue() + popularity * 0.01 * incomeProbabilityMap.get(name).doubleValue() * genderProbabilityMap.get(name).doubleValue();
+				Double newLow_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_MALE, newLow_Male);
+				newValue = high_maleValue.doubleValue() + popularity * 0.01 * (100 - incomeProbabilityMap.get(name).doubleValue()) * genderProbabilityMap.get(name).doubleValue();
+				Double newHigh_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_MALE, newHigh_Male);
+				newValue = young_femaleValue.doubleValue() + popularity * 0.01 * ageProbabilityMap.get(name).doubleValue() * (100 - genderProbabilityMap.get(name).doubleValue());
+				Double newYoung_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.YOUNG_FEMALE, newYoung_Female);
+				newValue = old_femaleValue.doubleValue() + popularity * 0.01 * (100 - ageProbabilityMap.get(name).doubleValue()) * (100 - genderProbabilityMap.get(name).doubleValue());
+				Double newOld_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.OLD_FEMALE, newOld_Female);
+				newValue = low_femaleValue.doubleValue() + popularity * 0.01 * incomeProbabilityMap.get(name).doubleValue() * (100 - genderProbabilityMap.get(name).doubleValue());
+				Double newLow_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_FEMALE, newLow_Female);
+				newValue = high_femaleValue.doubleValue() + popularity * 0.01 * (100 - incomeProbabilityMap.get(name).doubleValue()) * (100 - genderProbabilityMap.get(name).doubleValue());
+				Double newHigh_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_FEMALE, newHigh_Female);
+				newValue = low_youngValue.doubleValue() + popularity * 0.01 * incomeProbabilityMap.get(name).doubleValue() * ageProbabilityMap.get(name).doubleValue();
+				Double newLow_Young = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_YOUNG, newLow_Young);
+				newValue = high_youngValue.doubleValue() + popularity * 0.01 * (100 - incomeProbabilityMap.get(name).doubleValue()) * ageProbabilityMap.get(name).doubleValue();
+				Double newHigh_Young = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_YOUNG, newHigh_Young);
+				newValue = low_oldValue.doubleValue() + popularity * 0.01 * incomeProbabilityMap.get(name).doubleValue() * (100 - ageProbabilityMap.get(name).doubleValue());
+				Double newLow_Old = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_OLD, newLow_Old);
+				newValue = high_oldValue.doubleValue() + popularity * 0.01 * (100 - incomeProbabilityMap.get(name).doubleValue()) * (100 - ageProbabilityMap.get(name).doubleValue());
+				Double newHigh_Old = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_OLD, newHigh_Old);
 			}
 			else {
-				double newValue = youngSegmentValue.doubleValue() + popularity * 0.5;
-				Double newYoung = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.YOUNG, newYoung);
-				newValue = oldSegmentValue.doubleValue() + popularity * 0.5;
-				Double newOld = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.OLD, newOld);
-				newValue = lowSegmentValue.doubleValue() + popularity * 0.5;
-				Double newLow = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.LOW_INCOME, newLow);
-				newValue = highSegmentValue.doubleValue() + popularity * 0.5;
-				Double newHigh = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.HIGH_INCOME, newHigh);
-				newValue = maleSegmentValue.doubleValue() + popularity * 0.5;
-				Double newMale = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.MALE, newMale);
-				newValue = femaleSegmentValue.doubleValue() + popularity * 0.5;
-				Double newFemale = Double.valueOf(newValue);
-				segmentValues.put(MarketSegment.FEMALE, newFemale);
+				double newValue = old_maleValue.doubleValue() + popularity * 0.25;
+				Double newOld_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.OLD_MALE, newOld_Male);
+				newValue = young_maleValue.doubleValue() + popularity * 0.25;
+				Double newYoung_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.YOUNG_MALE, newYoung_Male);
+				newValue = low_maleValue.doubleValue() + popularity * 0.25;
+				Double newLow_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_MALE, newLow_Male);
+				newValue = high_maleValue.doubleValue() + popularity * 0.25;
+				Double newHigh_Male = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_MALE, newHigh_Male);
+				newValue = old_femaleValue.doubleValue() + popularity * 0.25;
+				Double newOld_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.OLD_FEMALE, newOld_Female);
+				newValue = young_femaleValue.doubleValue() + popularity * 0.25;
+				Double newYoung_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.YOUNG_FEMALE, newYoung_Female);
+				newValue = low_femaleValue.doubleValue() + popularity * 0.25;
+				Double newLow_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_FEMALE, newLow_Female);
+				newValue = high_femaleValue.doubleValue() + popularity * 0.25;
+				Double newHigh_Female = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_FEMALE, newHigh_Female);
+				newValue = low_oldValue.doubleValue() + popularity * 0.25;
+				Double newLow_Old = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_OLD, newLow_Old);
+				newValue = high_oldValue.doubleValue() + popularity * 0.25;
+				Double newHigh_Old = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_OLD, newHigh_Old);
+				newValue = low_youngValue.doubleValue() + popularity * 0.25;
+				Double newLow_Young = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.LOW_YOUNG, newLow_Young);
+				newValue = high_youngValue.doubleValue() + popularity * 0.25;
+				Double newHigh_Young = Double.valueOf(newValue);
+				segmentValues.put(CompoundSegment.HIGH_YOUNG, newHigh_Young);
 			}
 			log.info(entry.toString());
 		}
@@ -672,17 +819,12 @@ public class Team2_Ad_Network extends Agent {
 	private void handleAdNetworkReport(AdNetworkReport adnetReport) {
 		
 		log.info("Day "+ day + " : AdNetworkReport");
-		/*
-		 for (AdNetworkKey adnetKey : adnetReport.keys()) {
-		 
-			double rnd = Math.random();
-			if (rnd > 0.95) {
-				AdNetworkReportEntry entry = adnetReport
-						.getAdNetworkReportEntry(adnetKey);
-				log.info(adnetKey + " " + entry);
-			}
+		impressionOpsPerDay = 0;
+		for (AdNetworkKey adnetKey : adnetReport.keys()) {
+		 	AdNetworkReportEntry entry = adnetReport.getAdNetworkReportEntry(adnetKey);
+			impressionOpsPerDay += entry.getBidCount();
+			
 		}
-        */
 	}
 
 	@Override
