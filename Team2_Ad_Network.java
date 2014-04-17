@@ -519,7 +519,7 @@ public class Team2_Ad_Network extends Agent {
 				log.info("Day " + day + ": Initial ucs bid is " + ucsBid);
 			}
 		/* Note: Campaign bid is in millis */
-			long cmpBid = ((long) campaignValue / (long) targetBidPerDay);
+			long cmpBid = Math.min(Math.max((long) (1000000 * (targetBidPerDay / campaignValue)) - 4 * (60 - day), 50), 10000);
 			log.info("                                            " + cmpBid);
 			double cmpBidUnits = cmpBid / 1000.0;
 //			System.out.println(cmpBidUnits);
@@ -644,7 +644,7 @@ public class Team2_Ad_Network extends Agent {
 								campaign.id, 1);
 					}
 				}
-				double impressionLimit = 0.5 * campaign.impsTogo();
+				double impressionLimit = 1.1 * campaign.impsTogo();
 				double budgetLimit = 0.8 * Math.max(0, campaign.budget
 						- campaign.stats.getCost());
 				bidBundle.setCampaignDailyLimit(campaign.id,
